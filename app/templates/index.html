@@ -39,6 +39,12 @@
   .mrow { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
   .mrow input { width: 110px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; }
   .mrow .del { padding: 2px 8px; }
+  .clapgrid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 8px 12px;
+              align-items: center; max-width: 560px; }
+  .clapgrid input { width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; }
+  .clapgrid label { font-size: 13.5px; }
+  .clapgrid .cap { font-size: 12.5px; color: #57606a; }
+  #alignStatus { font-size: 13px; margin-top: 8px; }
   audio { width: 340px; height: 36px; vertical-align: middle; }
   #playingLabel { margin-left: 10px; font-size: 13px; color: #57606a; }
   #info b { color: #0969da; }
@@ -47,7 +53,7 @@
 <body>
 <header>
   <h1>🎧 广播剧混音审听台</h1>
-  <p class="sub">交片前逐段审听 · 双轨相加限幅 · 每 5 秒一段 · 全部通过方可下载</p>
+  <p class="sub">交片前逐段审听 · 打板线性对轨 · 双轨相加限幅 · 每 5 秒一段 · 全部通过方可下载</p>
 </header>
 <main>
   <section class="card">
@@ -58,7 +64,7 @@
       <button id="btnUpload">上传</button>
       <button id="btnSample" class="ghost">载入内置样例</button>
     </div>
-    <p class="hint">要求：16 位单声道 PCM WAV，两轨等长、同采样率。上传新集会清空全部通过状态。</p>
+    <p class="hint">要求：16 位单声道 PCM WAV、同采样率；两轨长度可不同，成片沿用 A 轨的时间轴与长度。上传新集会清空全部对轨、静音与通过状态。</p>
     <p class="msg" id="uploadMsg"></p>
   </section>
 
@@ -69,16 +75,39 @@
     </section>
 
     <section class="card">
-      <h2>3. 静音编辑（按采样编号，半开区间 [起, 止)）</h2>
+      <h2>3. 打板对轨（把 B 轨对到 A 轨）</h2>
+      <div class="clapgrid">
+        <span></span><span class="cap">A 轨采样号</span><span class="cap">B 轨采样号</span>
+        <label>第一次打板</label>
+        <input type="number" min="0" step="1" id="a1" placeholder="a1">
+        <input type="number" min="0" step="1" id="b1" placeholder="b1">
+        <label>第二次打板</label>
+        <input type="number" min="0" step="1" id="a2" placeholder="a2">
+        <input type="number" min="0" step="1" id="b2" placeholder="b2">
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="btnSaveAlign">保存对轨</button>
+        <button id="btnClearAlign" class="ghost">清除对轨（恒等映射）</button>
+        <span class="msg" id="alignMsg"></span>
+      </div>
+      <div id="alignStatus"></div>
+      <p class="hint">两轨编号都须严格递增（0 ≤ a1 &lt; a2 &lt; A 长度，0 ≤ b1 &lt; b2 &lt; B 长度）。
+        按打板点线性换算 B 轨取样位置：落在 B 首末样点之外补零，轨内线性插值后四舍五入；
+        成片始终沿用 A 轨时间轴与长度。B 轨静音始终按 B 原轨采样号、在插值前置零。
+        保存期间可继续试听与确认；与静音改动交错而冲突时，需按提示重试。</p>
+    </section>
+
+    <section class="card">
+      <h2>4. 静音编辑（半开区间 [起, 止)）</h2>
       <div class="tracks">
         <div class="track" id="trackA">
-          <h3>轨 A 静音区间</h3>
+          <h3>轨 A 静音区间（成片 / A 轨采样号）</h3>
           <div class="mutes"></div>
           <button class="ghost small addMute">＋添加区间</button>
           <button class="ghost small clearMute">清除本轨静音</button>
         </div>
         <div class="track" id="trackB">
-          <h3>轨 B 静音区间</h3>
+          <h3>轨 B 静音区间（B 原轨采样号，插值前置零）</h3>
           <div class="mutes"></div>
           <button class="ghost small addMute">＋添加区间</button>
           <button class="ghost small clearMute">清除本轨静音</button>
@@ -92,23 +121,25 @@
     </section>
 
     <section class="card">
-      <h2>4. 逐段试听与确认</h2>
+      <h2>5. 逐段试听与确认</h2>
       <audio id="player" controls></audio><span id="playingLabel"></span>
       <table id="segTable">
         <thead>
-          <tr><th>段</th><th>时间</th><th>采样区间</th><th>状态</th><th>混音哈希</th><th>操作</th></tr>
+          <tr><th>段</th><th>时间</th><th>采样区间（A 时间轴）</th><th>状态</th><th>混音哈希</th><th>操作</th></tr>
         </thead>
         <tbody></tbody>
       </table>
-      <p class="hint">确认时校验"刚试听的混音"与该段当前内容一致；若他处改动了静音导致内容变化，需重新试听。</p>
+      <p class="hint">确认时校验"刚试听的混音"与该段当前内容一致；若他处改动了对轨或静音导致内容变化，需重新试听。
+        仅实际 PCM 曾获确认的段落算通过。</p>
     </section>
 
     <section class="card">
-      <h2>5. 下载整集</h2>
+      <h2>6. 下载整集</h2>
       <div class="row">
         <button id="btnDownload" disabled>⬇ 下载整集 WAV</button>
         <span class="msg" id="dlMsg"></span>
       </div>
+      <p class="hint">各段都通过才开放新下载；已开始的下载继续交付开始时生效的混音（含当时的对轨与静音）。</p>
     </section>
   </div>
 </main>
@@ -118,6 +149,7 @@ const $ = s => document.querySelector(s);
 let state = null;
 let lastVersion = null;
 let editorDirty = false;
+let alignDirty = false;
 const listened = {};   // 段号 -> 最近一次试听到的混音哈希
 
 const fmtTime = t => `${Math.floor(t/60)}:${(t%60).toFixed(1).padStart(4,'0')}`;
@@ -138,17 +170,20 @@ function render() {
   const passed = state.segments.filter(s => s.passed).length;
   $('#info').innerHTML =
     `采样率 <b>${state.sample_rate}</b> Hz · 时长 <b>${fmtTime(state.duration)}</b>` +
-    `（${state.num_samples} 采样）· 共 <b>${state.segments.length}</b> 段` +
-    `（每段 ${state.segment_seconds} 秒，末段可不足）· 已通过 <b>${passed} / ${state.segments.length}</b>`;
+    `（A 轨 ${state.num_samples} 采样 / B 轨 ${state.num_samples_b} 采样）` +
+    ` · 共 <b>${state.segments.length}</b> 段（每段 ${state.segment_seconds} 秒，末段可不足）` +
+    ` · 已通过 <b>${passed} / ${state.segments.length}</b>`;
 
   if (state.version !== lastVersion) {
     if (editorDirty) {
-      setMsg('#muteMsg', '⚠️ 静音内容已被其他窗口修改，本地面板未同步；保存将以面板内容为准。', false);
+      setMsg('#muteMsg', '⚠️ 设置已被其他窗口修改，本地面板未同步；保存冲突时请按提示重试。', false);
     } else {
       syncEditors(state.mutes);
     }
+    if (!alignDirty) syncAlignForm(state.alignment);
     lastVersion = state.version;
   }
+  renderAlignStatus();
 
   const tb = document.querySelector('#segTable tbody');
   tb.innerHTML = '';
@@ -183,10 +218,45 @@ function render() {
          state.all_passed);
 }
 
+function renderAlignStatus() {
+  const el = $('#alignStatus');
+  if (!state || !state.alignment) {
+    el.innerHTML = '当前对轨：<b>未启用（恒等映射，b(x)=x）</b>';
+    return;
+  }
+  const a = state.alignment;
+  el.innerHTML = '当前对轨：打板点 ' +
+    `(<span class="num">${a.a1}</span>, <span class="num">${a.b1}</span>)、` +
+    `(<span class="num">${a.a2}</span>, <span class="num">${a.b2}</span>)，` +
+    `换算斜率 <b>${a.slope.toFixed(7)}</b>（B 采样 / A 采样），成片长度仍为 A 轨 ` +
+    `<b>${state.num_samples}</b> 采样`;
+}
+
 function setMsg(sel, text, ok) {
   const el = $(sel);
   el.textContent = text;
   el.classList.toggle('okmsg', !!ok);
+}
+
+function conflictPrompt(msgSel, d, retryFn) {
+  const fresh = d.state;
+  if (fresh) {
+    state = fresh;
+    if (!editorDirty) syncEditors(fresh.mutes);
+    if (!alignDirty) syncAlignForm(fresh.alignment);
+    lastVersion = fresh.version;
+    renderAlignStatus();
+  }
+  const el = $(msgSel);
+  el.classList.remove('okmsg');
+  el.textContent = '⚠️ ' + (d.error || '设置已被其他改动更新') + '（当前版本 ' +
+    (fresh ? fresh.version : '?') + '）。';
+  const btn = document.createElement('button');
+  btn.className = 'small ghost';
+  btn.textContent = '按当前设置重试';
+  btn.style.marginLeft = '8px';
+  btn.onclick = () => { el.textContent = ''; retryFn(); };
+  el.append(btn);
 }
 
 async function audition(i) {
@@ -228,6 +298,13 @@ function syncEditors(mutes) {
   }
 }
 
+function syncAlignForm(al) {
+  $('#a1').value = al ? al.a1 : '';
+  $('#b1').value = al ? al.b1 : '';
+  $('#a2').value = al ? al.a2 : '';
+  $('#b2').value = al ? al.b2 : '';
+}
+
 function addRow(t, s, e) {
   const box = document.querySelector(`#track${t} .mutes`);
   const div = document.createElement('div');
@@ -254,10 +331,12 @@ function collectMutes() {
 }
 
 async function saveMutes() {
+  const payload = collectMutes();
+  if (state) payload.version = state.version;
   const r = await fetch('/api/mutes', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(collectMutes())
+    body: JSON.stringify(payload)
   });
   const d = await r.json().catch(() => ({}));
   if (r.ok) {
@@ -267,8 +346,44 @@ async function saveMutes() {
       ? `已保存。${inv.length} 段混音发生变化，需重新试听：第 ${inv.map(i => i + 1).join('、')} 段。`
       : '已保存，无段落受影响。', true);
     await refresh();
+  } else if (r.status === 409 && d.conflict) {
+    conflictPrompt('#muteMsg', d, saveMutes);
   } else {
     setMsg('#muteMsg', '保存失败（原有混音与通过状态未变）：' + (d.error || r.status), false);
+  }
+}
+
+function readAlignInputs() {
+  const vals = {};
+  for (const id of ['a1', 'b1', 'a2', 'b2']) {
+    const raw = $('#' + id).value.trim();
+    if (raw === '') return null;
+    vals[id] = Number(raw);
+  }
+  return vals;
+}
+
+async function saveAlignment(clear) {
+  const payload = clear ? {clear: true} : readAlignInputs();
+  if (!payload) { setMsg('#alignMsg', '请填齐四个打板采样号，或使用"清除对轨"。', false); return; }
+  if (state) payload.version = state.version;
+  const r = await fetch('/api/alignment', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) {
+    alignDirty = false;
+    const inv = d.invalidated || [];
+    setMsg('#alignMsg', inv.length
+      ? `对轨已保存并生效。${inv.length} 段混音变化，需重新试听：第 ${inv.map(i => i + 1).join('、')} 段。`
+      : '对轨已保存并生效，无段落受影响。', true);
+    await refresh();
+  } else if (r.status === 409 && d.conflict) {
+    conflictPrompt('#alignMsg', d, () => saveAlignment(clear));
+  } else {
+    setMsg('#alignMsg', '保存失败（当前生效混音未变）：' + (d.error || r.status), false);
   }
 }
 
@@ -282,6 +397,10 @@ document.querySelectorAll('.clearMute').forEach(btn =>
     saveMutes();   // 清除本轨静音并立即保存
   });
 $('#btnSaveMutes').onclick = saveMutes;
+$('#btnSaveAlign').onclick = () => { alignDirty = true; saveAlignment(false); };
+$('#btnClearAlign').onclick = () => { alignDirty = true; saveAlignment(true); };
+['a1', 'b1', 'a2', 'b2'].forEach(id =>
+  $('#' + id).addEventListener('input', () => { alignDirty = true; }));
 
 $('#btnUpload').onclick = async () => {
   const fa = $('#fileA').files[0], fb = $('#fileB').files[0];
@@ -292,9 +411,10 @@ $('#btnUpload').onclick = async () => {
   const r = await fetch('/api/upload', {method: 'POST', body: fd});
   const d = await r.json().catch(() => ({}));
   if (r.ok) {
-    setMsg('#uploadMsg', '上传成功。', true);
+    setMsg('#uploadMsg', '上传成功（新集，旧对轨/静音/通过记录已清空）。', true);
     Object.keys(listened).forEach(k => delete listened[k]);
-    editorDirty = false;
+    editorDirty = false; alignDirty = false;
+    setMsg('#muteMsg', '', false); setMsg('#alignMsg', '', false);
     await refresh();
   } else {
     setMsg('#uploadMsg', '上传失败：' + (d.error || r.status), false);
@@ -305,9 +425,10 @@ $('#btnSample').onclick = async () => {
   const r = await fetch('/api/load_sample', {method: 'POST'});
   const d = await r.json().catch(() => ({}));
   if (r.ok) {
-    setMsg('#uploadMsg', '已载入内置样例（27 秒，6 段；第 3 段含限幅演示）。', true);
+    setMsg('#uploadMsg', '已载入内置样例（27 秒、6 段；B 机带时钟漂移，样例 README 给出打板采样号；第 3 段含限幅演示）。', true);
     Object.keys(listened).forEach(k => delete listened[k]);
-    editorDirty = false;
+    editorDirty = false; alignDirty = false;
+    setMsg('#muteMsg', '', false); setMsg('#alignMsg', '', false);
     await refresh();
   } else {
     setMsg('#uploadMsg', '载入样例失败：' + (d.error || r.status), false);
